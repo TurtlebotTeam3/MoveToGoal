@@ -1,6 +1,4 @@
 <launch>
-<node pkg="testnode" type="publisher.py" name="topic_publisher" output="screen">
-</node>
-<node pkg="testnode" type="subscriber.py" name="topic_subscriber" output="screen">
+<node pkg="move_to_goal" type="moveToGoal.py" name="move_to_goal" output="screen">
 </node>
 </launch>

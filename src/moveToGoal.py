@@ -3,7 +3,7 @@
 import rospy
 from std_msgs.msg import String
 
-class Publisher:
+class MoveToGoal:
 	
 	def __init__(self):
 		rospy.init_node('topic_publisher')
@@ -20,7 +20,7 @@ class Publisher:
 
 if __name__ == '__main__':
 	try:
-		publisher=Publisher()
+		publisher=MoveToGoal()
 		publisher.run()
 	except rospy.ROSInterruptException:
 		pass
