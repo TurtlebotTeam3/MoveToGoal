@@ -53,7 +53,7 @@ class MoveToGoal:
 		vel_msg = Twist()
 
 		while self._euclidean_distance(goal_pose) >= self.distance_tolerance:
-			if abs(self._steering_angle(goal_pose) - self.robot_yaw) > 0.08:
+			if abs(self._steering_angle(goal_pose) - self.robot_yaw) > 0.1:
 				print('rotate')
 				# Linear velocity in the x-axis.
 				vel_msg.linear.x = 0
@@ -63,12 +63,12 @@ class MoveToGoal:
 				# Angular velocity in the z-axis.
 				vel_msg.angular.x = 0
 				vel_msg.angular.y = 0
-				#if self._angular_vel(goal_pose) > 0:
-				#	vel_msg.angular.z = -0.2
-				#else:
-				#	vel_msg.angular.z = 0.2
+				if self._angular_vel(goal_pose) > 0:
+					vel_msg.angular.z = 0.2
+				else:
+					vel_msg.angular.z = -0.2
 				
-				vel_msg.angular.z = self._angular_vel(goal_pose)
+				# vel_msg.angular.z = self._angular_vel(goal_pose)
 
 			else:
 				print('Forward')
