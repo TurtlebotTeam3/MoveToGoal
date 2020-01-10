@@ -39,7 +39,7 @@ class MoveToGoal:
 		self.rate = rospy.Rate(20)
 		self.obstacle = False
 		self.oldtheta = 0
-
+		print('--- ready ---')
 		rospy.spin()
 
 	def _shutdown(self):
@@ -98,7 +98,7 @@ class MoveToGoal:
 			vel_msg.angular.x = 0
 			vel_msg.angular.y = 0
 
-			if abs(self._steering_angle(goal_pose) - self.robot_yaw) > 0.05:
+			if abs(self._steering_angle(goal_pose) - self.robot_yaw) > 0.1:
 				print('rotate')
 				vel_msg.angular.z = self._angular_vel(goal_pose)
 			else:
@@ -134,7 +134,7 @@ class MoveToGoal:
 		return sqrt(pow((goal_pose.position.x - self.pose.position.x), 2) +
 					pow((goal_pose.position.y - self.pose.position.y), 2))
 
-	def _linear_vel(self, goal_pose, constant=0.3):
+	def _linear_vel(self, goal_pose, constant=0.4):
 		return constant * self._euclidean_distance(goal_pose)
 
 	def _steering_angle(self, goal_pose):
@@ -148,18 +148,19 @@ class MoveToGoal:
 	def _angular_vel(self, goal_pose, constant=0.3):
 		yaw = self._robot_angle()
 		steer_angle = self._steering_angle(goal_pose)
-		return constant * (steer_angle - yaw)
-		#steer_angle = (steer_angle + 2*math.pi) % 2*math.pi
-		#yaw = (yaw + 2*math.pi) % 2*math.pi
+		#return constant * (steer_angle - yaw)
+		
+		yaw_2 = (yaw + 2*math.pi) % (2*math.pi)
+		steer_angle_2 = (steer_angle + 2*math.pi) % (2*math.pi)
+		angle_2pi = (steer_angle_2 - yaw_2) % (2*math.pi)
+		
+		if angle_2pi < math.pi:
+			# rotate robot to the left
+			return constant * (2*math.pi - angle_2pi)
+		else:
+			# rotate robot to the right
+			return constant * (angle_2pi - 2*math.pi)
 
-		#angle = 0
-
-		#if steer_angle > yaw:
-		#	angle = steer_angle - yaw
-		#else:
-		#	angle = yaw - steer_angle
-
-		#return constant * (angle - math.pi)
 
 if __name__ == '__main__':
 	try:
