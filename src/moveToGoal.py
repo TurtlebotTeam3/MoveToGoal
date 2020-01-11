@@ -34,7 +34,7 @@ class MoveToGoal:
 		self.scanSub = rospy.Subscriber('/scan', LaserScan, self._scan_callback)
 
 		self.stop = False
-		self.distance_tolerance = 0.03
+		self.distance_tolerance = 0.01
 		self.pose = Pose()
 		self.rate = rospy.Rate(20)
 		self.obstacle = False
@@ -57,7 +57,8 @@ class MoveToGoal:
 		self.rate.sleep()
 
 	def _scan_callback(self, scan):
-		if scan.ranges[0] < 0.2:
+		safeDistance = 0.25
+		if scan.ranges[355] < safeDistance or scan.ranges[359] < safeDistance or scan.ranges[0] < safeDistance or scan.ranges[4] < safeDistance:
 			self.obstacle = True
 		else:
 			self.obstacle = False
@@ -98,7 +99,7 @@ class MoveToGoal:
 			vel_msg.angular.x = 0
 			vel_msg.angular.y = 0
 
-			if abs(self._steering_angle(goal_pose) - self.robot_yaw) > 0.1:
+			if abs(self._steering_angle(goal_pose) - self.robot_yaw) > 0.2:
 				print('rotate')
 				vel_msg.angular.z = self._angular_vel(goal_pose)
 			else:
@@ -116,9 +117,9 @@ class MoveToGoal:
 
 			# Publish at the desired rate.
 			self.rate.sleep()
-			vel_msg.linear.x = 0
-			vel_msg.angular.z = 0
-			self.velocity_publisher.publish(vel_msg)
+			# vel_msg.linear.x = 0
+			# vel_msg.angular.z = 0
+			# self.velocity_publisher.publish(vel_msg)
 
 		# Stopping our robot after the movement is over.
 		vel_msg.linear.x = 0
@@ -135,7 +136,8 @@ class MoveToGoal:
 					pow((goal_pose.position.y - self.pose.position.y), 2))
 
 	def _linear_vel(self, goal_pose, constant=0.4):
-		return constant * self._euclidean_distance(goal_pose)
+		#return constant * self._euclidean_distance(goal_pose)
+		return 0.05
 
 	def _steering_angle(self, goal_pose):
 		y = goal_pose.position.y - self.pose.position.y
@@ -156,10 +158,12 @@ class MoveToGoal:
 		
 		if angle_2pi < math.pi:
 			# rotate robot to the left
-			return constant * (2*math.pi - angle_2pi)
+			# return constant * (2*math.pi - angle_2pi)
+			return 0.5
 		else:
 			# rotate robot to the right
-			return constant * (angle_2pi - 2*math.pi)
+			# return constant * (angle_2pi - 2*math.pi)
+			return -0.5
 
 
 if __name__ == '__main__':
