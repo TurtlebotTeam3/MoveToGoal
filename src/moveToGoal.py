@@ -38,7 +38,7 @@ class MoveToGoal:
 		self.scanSub = rospy.Subscriber('/scan', LaserScan, self._scan_callback)
 
 		self.stop = False
-		self.distance_tolerance = 0.01
+		self.distance_tolerance = 0.05
 		self.pose = Pose()
 		self.rate = rospy.Rate(20)
 		self.obstacle = False
@@ -59,12 +59,27 @@ class MoveToGoal:
 		vel_msg.angular.y = 0
 		self.velocity_publisher.publish(vel_msg)
 		self.rate.sleep()
-
+	"""
 	def _scan_callback(self, scan):
 		safeDistance = 0.25
 		# if scan.ranges[355] < safeDistance or scan.ranges[359] < safeDistance or scan.ranges[0] < safeDistance or scan.ranges[4] < safeDistance:
 		if scan.ranges[0] > 0.0 and scan.ranges[0] < safeDistance:
 			self.obstacle = True
+		else:
+			self.obstacle = False
+	"""
+
+	def _scan_callback(self, scan):
+		range_front = []
+		min_front = 0
+		# in front of the robot (between 20 to -20 degrees)
+		range_front[:20] = scan.ranges[-20:]
+		range_front[20:] = scan.ranges[:20]
+		range_front = list(filter(lambda num: num != 0, range_front))
+		min_front = min(range_front)
+		if min_front < 0.18 and min_front != 0.0:
+			self.obstacle = True
+			print "Obstacle in Front"
 		else:
 			self.obstacle = False
 
@@ -123,7 +138,7 @@ class MoveToGoal:
 			vel_msg.angular.x = 0
 			vel_msg.angular.y = 0
 
-			if abs(self._steering_angle(goal_pose) - self.robot_yaw) > 0.1:
+			if abs(self._steering_angle(goal_pose) - self.robot_yaw) > 0.15:
 				print('rotate')
 				vel_msg.angular.z = self._angular_vel(goal_pose)
 			else:
@@ -161,7 +176,7 @@ class MoveToGoal:
 
 	def _linear_vel(self, goal_pose, constant=0.4):
 		#return constant * self._euclidean_distance(goal_pose)
-		return 0.05
+		return 0.075
 
 	def _steering_angle(self, goal_pose):
 		y = goal_pose.position.y - self.pose.position.y
