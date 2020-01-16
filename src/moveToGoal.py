@@ -7,10 +7,8 @@ from std_msgs.msg import String
 from math import pow, atan2, sqrt
 from geometry_msgs.msg._Twist import Twist
 from geometry_msgs.msg._Pose import Pose
-from nav_msgs.msg._Odometry import Odometry
 from std_msgs.msg._Bool import Bool
 from sensor_msgs.msg._LaserScan import LaserScan
-from tf import TransformListener
 import tf
 
 
@@ -20,15 +18,24 @@ class MoveToGoal:
 		rospy.on_shutdown(self._shutdown)
 		rospy.init_node('move_to_goal')
 
-		self.tf = TransformListener()
+		self.stop = False
+		self.distance_tolerance = 0.05
+		self.pose = Pose()
+		self.rate = rospy.Rate(20)
+		self.obstacle = False
+		self.oldtheta = 0
 
 		self.pub = rospy.Publisher('phrases', String, queue_size=10)
 		
 		self.velocity_publisher = rospy.Publisher('cmd_vel', 
 													Twist, queue_size=10)
 
+		self.pose_subscriber = rospy.Subscriber('/simple_odom_pose',
+												Pose, self._update_pose)
+
 		self.pose_subscriber = rospy.Subscriber('/odom',
-												Odometry, self._update_pose)
+												Pose, self._update_pose)
+
 
 		self.goal_subscriber = rospy.Subscriber('/move_to_goal/goal',
 												Pose, self._update_goal)
@@ -37,12 +44,7 @@ class MoveToGoal:
 													Bool, queue_size=1)
 		self.scanSub = rospy.Subscriber('/scan', LaserScan, self._scan_callback)
 
-		self.stop = False
-		self.distance_tolerance = 0.05
-		self.pose = Pose()
-		self.rate = rospy.Rate(20)
-		self.obstacle = False
-		self.oldtheta = 0
+		
 		print('--- ready ---')
 		rospy.spin()
 
@@ -59,15 +61,6 @@ class MoveToGoal:
 		vel_msg.angular.y = 0
 		self.velocity_publisher.publish(vel_msg)
 		self.rate.sleep()
-	"""
-	def _scan_callback(self, scan):
-		safeDistance = 0.25
-		# if scan.ranges[355] < safeDistance or scan.ranges[359] < safeDistance or scan.ranges[0] < safeDistance or scan.ranges[4] < safeDistance:
-		if scan.ranges[0] > 0.0 and scan.ranges[0] < safeDistance:
-			self.obstacle = True
-		else:
-			self.obstacle = False
-	"""
 
 	def _scan_callback(self, scan):
 		range_front = []
@@ -87,27 +80,19 @@ class MoveToGoal:
 		"""
 		Update current pose of robot
 		"""
-		self.pose = data.pose.pose
-		#if self.tf.frameExists("base_link") and self.tf.frameExists("map"):
 		try:
-			# rosrun tf tf_echo map odom
-			#t = self.tf.getLatestCommonTime("base_link", "map")
-			#position, quaternion = self.tf.lookupTransform("base_link", "map", t)
-			t = self.tf.getLatestCommonTime("map", "base_footprint")
-			position, quaternion = self.tf.lookupTransform("map", "base_footprint", t)
-
-			self.pose.position.x = position[0]
-			self.pose.position.y = position[1]
-			self.pose.position.z = position[2]
-			self.pose.orientation.x = quaternion[0]
-			self.pose.orientation.y = quaternion[1]
-			self.pose.orientation.z = quaternion[2]
-			self.pose.orientation.w = quaternion[3]
+			self.pose.position.x = data.position.x
+			self.pose.position.y = data.position.y
+			self.pose.position.z = data.position.z
+			self.pose.orientation.x = data.orientation.x 
+			self.pose.orientation.y = data.orientation.y 
+			self.pose.orientation.z = data.orientation.z
+			self.pose.orientation.w = data.orientation.w 
 		except:
 			print('transform not ready')
 		
-		self.pose.position.x = round(data.pose.pose.position.x, 4)
-		self.pose.position.y = round(data.pose.pose.position.y, 4)
+		self.pose.position.x = round(data.position.x, 4)
+		self.pose.position.y = round(data.position.y, 4)
 		self.robot_yaw = self._robot_angle()
 		
 
