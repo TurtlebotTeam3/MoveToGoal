@@ -33,9 +33,6 @@ class MoveToGoal:
 		self.pose_subscriber = rospy.Subscriber('/simple_odom_pose',
 												Pose, self._update_pose)
 
-		self.pose_subscriber = rospy.Subscriber('/odom',
-												Pose, self._update_pose)
-
 
 		self.goal_subscriber = rospy.Subscriber('/move_to_goal/goal',
 												Pose, self._update_goal)
@@ -70,7 +67,7 @@ class MoveToGoal:
 		range_front[20:] = scan.ranges[:20]
 		range_front = list(filter(lambda num: num != 0, range_front))
 		min_front = min(range_front)
-		if min_front < 0.18 and min_front != 0.0:
+		if min_front < 0.25 and min_front != 0.0:
 			self.obstacle = True
 			print "Obstacle in Front"
 		else:
@@ -122,8 +119,9 @@ class MoveToGoal:
 			# Angular velocity in the z-axis.
 			vel_msg.angular.x = 0
 			vel_msg.angular.y = 0
+			vel_msg.angular.z = 0
 
-			if abs(self._steering_angle(goal_pose) - self.robot_yaw) > 0.15:
+			if abs(self._steering_angle(goal_pose) - self.robot_yaw) > 0.2:
 				print('rotate')
 				vel_msg.angular.z = self._angular_vel(goal_pose)
 			else:
@@ -141,9 +139,9 @@ class MoveToGoal:
 
 			# Publish at the desired rate.
 			self.rate.sleep()
-			vel_msg.linear.x = 0
-			vel_msg.angular.z = 0
-			self.velocity_publisher.publish(vel_msg)
+			#vel_msg.linear.x = 0
+			#vel_msg.angular.z = 0
+			#self.velocity_publisher.publish(vel_msg)
 
 		# Stopping our robot after the movement is over.
 		vel_msg.linear.x = 0
@@ -161,7 +159,7 @@ class MoveToGoal:
 
 	def _linear_vel(self, goal_pose, constant=0.4):
 		#return constant * self._euclidean_distance(goal_pose)
-		return 0.075
+		return 0.1
 
 	def _steering_angle(self, goal_pose):
 		y = goal_pose.position.y - self.pose.position.y
