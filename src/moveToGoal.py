@@ -174,6 +174,7 @@ class MoveToGoal:
 			self.goal_reached_publisher.publish(False)
 
 	def _stop_motors(self):
+		vel_msg = Twist()
 		vel_msg.linear.x = 0
 		vel_msg.angular.z = 0
 		self.velocity_publisher.publish(vel_msg)
