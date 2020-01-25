@@ -104,7 +104,7 @@ class MoveToGoal:
 		"""
 		# True when to pause and False when to continue
 		self.send_paused_update = True
-		self.pause_action = data
+		self.pause_action = data.data
 
 	def _robot_angle(self):
 		orientation_q = self.pose.orientation
