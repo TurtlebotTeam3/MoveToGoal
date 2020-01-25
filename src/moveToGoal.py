@@ -25,6 +25,7 @@ class MoveToGoal:
 		self.obstacle = False
 		self.oldtheta = 0
 		self.pause_action = False
+		self.send_paused_update = False
 
 		self.pub = rospy.Publisher('phrases', String, queue_size=10)
 		
@@ -44,6 +45,8 @@ class MoveToGoal:
 
 		self.pause_subscriber = rospy.Subscriber('/move_to_goal/pause_action',
 												Bool, self._pause_action)
+
+		self.paused_publisher = rospy.Publisher('/move_to_goal/paused', Bool, queue_size=1)
 
 		print('--- ready ---')
 		rospy.spin()
@@ -100,6 +103,7 @@ class MoveToGoal:
 		Pause / Continue current action
 		"""
 		# True when to pause and False when to continue
+		self.send_paused_update = True
 		self.pause_action = data
 
 	def _robot_angle(self):
@@ -121,6 +125,10 @@ class MoveToGoal:
 
 		while self._euclidean_distance(goal_pose) >= self.distance_tolerance and not self.stop and not cancle:
 			if not self.pause_action:
+				if self.send_paused_update:
+					self.paused_publisher.publish(False)
+					self.send_paused_update = False
+				
 				# Linear velocity in the x-axis.
 				vel_msg.linear.x = 0
 				vel_msg.linear.y = 0
@@ -154,6 +162,9 @@ class MoveToGoal:
 				#self.velocity_publisher.publish(vel_msg)
 			else:
 				self._stop_motors()
+				if self.send_paused_update:
+					self.paused_publisher.publish(True)
+					self.send_paused_update = False
 
 		# Stopping our robot after the movement is over.
 		self._stop_motors()
