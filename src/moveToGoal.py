@@ -24,6 +24,7 @@ class MoveToGoal:
 		self.rate = rospy.Rate(20)
 		self.obstacle = False
 		self.oldtheta = 0
+		self.pause_action = False
 
 		self.pub = rospy.Publisher('phrases', String, queue_size=10)
 		
@@ -41,7 +42,9 @@ class MoveToGoal:
 													Bool, queue_size=1)
 		self.scanSub = rospy.Subscriber('/scan', LaserScan, self._scan_callback)
 
-		
+		self.pause_subscriber = rospy.Subscriber('/move_to_goal/pause_action',
+												Bool, self._pause_action)
+
 		print('--- ready ---')
 		rospy.spin()
 
@@ -92,6 +95,12 @@ class MoveToGoal:
 		self.pose.position.y = round(data.position.y, 4)
 		self.robot_yaw = self._robot_angle()
 		
+	def _pause_action(self, data):
+		"""
+		Pause / Continue current action
+		"""
+		# True when to pause and False when to continue
+		self.pause_action = data
 
 	def _robot_angle(self):
 		orientation_q = self.pose.orientation
@@ -111,47 +120,53 @@ class MoveToGoal:
 		cancle = False
 
 		while self._euclidean_distance(goal_pose) >= self.distance_tolerance and not self.stop and not cancle:
-			# Linear velocity in the x-axis.
-			vel_msg.linear.x = 0
-			vel_msg.linear.y = 0
-			vel_msg.linear.z = 0
+			if not self.pause_action:
+				# Linear velocity in the x-axis.
+				vel_msg.linear.x = 0
+				vel_msg.linear.y = 0
+				vel_msg.linear.z = 0
 
-			# Angular velocity in the z-axis.
-			vel_msg.angular.x = 0
-			vel_msg.angular.y = 0
-			vel_msg.angular.z = 0
+				# Angular velocity in the z-axis.
+				vel_msg.angular.x = 0
+				vel_msg.angular.y = 0
+				vel_msg.angular.z = 0
 
-			if abs(self._steering_angle(goal_pose) - self.robot_yaw) > 0.2:
-				print('rotate')
-				vel_msg.angular.z = self._angular_vel(goal_pose)
-			else:
-				print('Forward')
-				if not self.obstacle:
-					vel_msg.linear.x = self._linear_vel(goal_pose)
+				if abs(self._steering_angle(goal_pose) - self.robot_yaw) > 0.2:
+					print('rotate')
+					vel_msg.angular.z = self._angular_vel(goal_pose)
 				else:
-					cancle = True
-					vel_msg.linear.x = 0
-					vel_msg.angular.z = 0
-					self.velocity_publisher.publish(vel_msg)
+					print('Forward')
+					if not self.obstacle:
+						vel_msg.linear.x = self._linear_vel(goal_pose)
+					else:
+						cancle = True
+						vel_msg.linear.x = 0
+						vel_msg.angular.z = 0
+						self.velocity_publisher.publish(vel_msg)
 
-			# Publishing our vel_msg
-			self.velocity_publisher.publish(vel_msg)
+				# Publishing our vel_msg
+				self.velocity_publisher.publish(vel_msg)
 
-			# Publish at the desired rate.
-			self.rate.sleep()
-			#vel_msg.linear.x = 0
-			#vel_msg.angular.z = 0
-			#self.velocity_publisher.publish(vel_msg)
+				# Publish at the desired rate.
+				self.rate.sleep()
+				#vel_msg.linear.x = 0
+				#vel_msg.angular.z = 0
+				#self.velocity_publisher.publish(vel_msg)
+			else:
+				self._stop_motors()
 
 		# Stopping our robot after the movement is over.
-		vel_msg.linear.x = 0
-		vel_msg.angular.z = 0
-		self.velocity_publisher.publish(vel_msg)
-		self.rate.sleep()
+		self._stop_motors()
 		if not cancle:
 			self.goal_reached_publisher.publish(True)
 		else:
 			self.goal_reached_publisher.publish(False)
+
+	def _stop_motors(self):
+		vel_msg.linear.x = 0
+		vel_msg.angular.z = 0
+		self.velocity_publisher.publish(vel_msg)
+		self.rate.sleep()
 
 	def _euclidean_distance(self, goal_pose):
 		return sqrt(pow((goal_pose.position.x - self.pose.position.x), 2) +
