@@ -26,6 +26,8 @@ class MoveToGoal:
 		self.oldtheta = 0
 		self.pause_action = False
 		self.send_paused_update = False
+		self.goal_pose = None
+		self.goal_to_approach = False
 
 		self.pub = rospy.Publisher('phrases', String, queue_size=10)
 		
@@ -49,7 +51,7 @@ class MoveToGoal:
 		self.paused_publisher = rospy.Publisher('/move_to_goal/paused', Bool, queue_size=1)
 
 		print('--- ready ---')
-		rospy.spin()
+		#rospy.spin()
 
 	def _shutdown(self):
 		self.stop = True
@@ -116,14 +118,17 @@ class MoveToGoal:
 		"""
 		New goal to approach
 		"""
-		
 		print('New goal' + str(goal_pose.position.x) + ' | ' + str(goal_pose.position.y))
+		self.goal_pose = goal_pose
+		self.goal_to_approach = True
 
+
+	def _move_to_goal(self)
 		vel_msg = Twist()
 
 		cancle = False
 
-		while self._euclidean_distance(goal_pose) >= self.distance_tolerance and not self.stop and not cancle:
+		while self._euclidean_distance(self.goal_pose) >= self.distance_tolerance and not self.stop and not cancle:
 			if not self.pause_action:
 				if self.send_paused_update:
 					self.paused_publisher.publish(False)
@@ -139,14 +144,15 @@ class MoveToGoal:
 				vel_msg.angular.y = 0
 				vel_msg.angular.z = 0
 
-				if abs(self._steering_angle(goal_pose) - self.robot_yaw) > 0.2:
+				if abs(self._steering_angle(self.goal_pose) - self.robot_yaw) > 0.2:
 					print('rotate')
-					vel_msg.angular.z = self._angular_vel(goal_pose)
+					vel_msg.angular.z = self._angular_vel(self.goal_pose)
 				else:
 					print('Forward')
 					if not self.obstacle:
-						vel_msg.linear.x = self._linear_vel(goal_pose)
+						vel_msg.linear.x = self._linear_vel(self.goal_pose)
 					else:
+						self.goal_to_approach = False
 						cancle = True
 						vel_msg.linear.x = 0
 						vel_msg.angular.z = 0
@@ -170,8 +176,10 @@ class MoveToGoal:
 		self._stop_motors()
 		if not cancle:
 			self.goal_reached_publisher.publish(True)
+			self.goal_to_approach = False
 		else:
 			self.goal_reached_publisher.publish(False)
+			self.goal_to_approach = False
 
 	def _stop_motors(self):
 		vel_msg = Twist()
@@ -214,9 +222,17 @@ class MoveToGoal:
 			# return constant * (angle_2pi - 2*math.pi)
 			return -0.5
 
+	def run(self):
+		"""
+		Runs in an endless loop and checks if there is a goal to approach until shutdown
+		"""
+		while True:
+			if self.goal_to_approach:
+				self._move_to_goal()
 
 if __name__ == '__main__':
 	try:
-		moveToGoal=MoveToGoal()
+		moveToGoal = MoveToGoal()
+		MoveToGoal.run()
 	except rospy.ROSInterruptException:
 		pass
