@@ -28,27 +28,31 @@ class MoveToGoal:
 		self.send_paused_update = False
 		self.goal_pose = None
 		self.goal_to_approach = False
+		self.cancle = False
 
 		self.pub = rospy.Publisher('phrases', String, queue_size=10)
 		
 		self.velocity_publisher = rospy.Publisher('cmd_vel', 
 													Twist, queue_size=10)
 
+		self.goal_reached_publisher = rospy.Publisher('move_to_goal/reached', 
+													Bool, queue_size=1)
+
+		self.paused_publisher = rospy.Publisher('/move_to_goal/paused',
+													Bool, queue_size=1)
+		
 		self.pose_subscriber = rospy.Subscriber('/simple_odom_pose',
 												Pose, self._update_pose)
 
 
+		self.scanSub = rospy.Subscriber('/scan', LaserScan, self._scan_callback)
+
 		self.goal_subscriber = rospy.Subscriber('/move_to_goal/goal',
 												Pose, self._update_goal)
 		
-		self.goal_reached_publisher = rospy.Publisher('move_to_goal/reached', 
-													Bool, queue_size=1)
-		self.scanSub = rospy.Subscriber('/scan', LaserScan, self._scan_callback)
-
 		self.pause_subscriber = rospy.Subscriber('/move_to_goal/pause_action',
 												Bool, self._pause_action)
 
-		self.paused_publisher = rospy.Publisher('/move_to_goal/paused', Bool, queue_size=1)
 
 		print('--- ready ---')
 		#rospy.spin()
@@ -127,8 +131,9 @@ class MoveToGoal:
 		vel_msg = Twist()
 
 		cancle = False
+		goal_reached = self._euclidean_distance(self.goal_pose) > self.distance_tolerance
 
-		while self._euclidean_distance(self.goal_pose) > self.distance_tolerance and not self.stop and not cancle:
+		while not goal_reached and not self.stop and not cancle:
 			if not self.pause_action:
 				if self.send_paused_update:
 					self.paused_publisher.publish(False)
@@ -166,6 +171,8 @@ class MoveToGoal:
 				#vel_msg.linear.x = 0
 				#vel_msg.angular.z = 0
 				#self.velocity_publisher.publish(vel_msg)
+
+				goal_reached = self._euclidean_distance(self.goal_pose) > self.distance_tolerance
 			else:
 				self._stop_motors()
 				if self.send_paused_update:
