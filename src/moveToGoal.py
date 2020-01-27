@@ -123,7 +123,7 @@ class MoveToGoal:
 		self.goal_to_approach = True
 
 
-	def _move_to_goal(self)
+	def _move_to_goal(self):
 		vel_msg = Twist()
 
 		cancle = False
@@ -233,6 +233,6 @@ class MoveToGoal:
 if __name__ == '__main__':
 	try:
 		moveToGoal = MoveToGoal()
-		MoveToGoal.run()
+		moveToGoal.run()
 	except rospy.ROSInterruptException:
 		pass
