@@ -131,7 +131,7 @@ class MoveToGoal:
 		vel_msg = Twist()
 
 		cancle = False
-		goal_reached = self._euclidean_distance(self.goal_pose) > self.distance_tolerance
+		goal_reached = self._euclidean_distance(self.goal_pose) <= self.distance_tolerance
 
 		while not goal_reached and not self.stop and not cancle:
 			if not self.pause_action:
@@ -171,7 +171,7 @@ class MoveToGoal:
 				#vel_msg.angular.z = 0
 				#self.velocity_publisher.publish(vel_msg)
 
-				goal_reached = self._euclidean_distance(self.goal_pose) > self.distance_tolerance
+				goal_reached = self._euclidean_distance(self.goal_pose) <= self.distance_tolerance
 			else:
 				if self.send_paused_update:
 					self._stop_motors()
