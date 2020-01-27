@@ -19,7 +19,7 @@ class MoveToGoal:
 		rospy.init_node('move_to_goal')
 
 		self.stop = False
-		self.distance_tolerance = 0.01
+		self.distance_tolerance = 0.02
 		self.pose = Pose()
 		self.rate = rospy.Rate(20)
 		self.obstacle = False
@@ -152,7 +152,6 @@ class MoveToGoal:
 					if not self.obstacle:
 						vel_msg.linear.x = self._linear_vel(self.goal_pose)
 					else:
-						self.goal_to_approach = False
 						cancle = True
 						vel_msg.linear.x = 0
 						vel_msg.angular.z = 0
@@ -216,11 +215,11 @@ class MoveToGoal:
 		if angle_2pi < math.pi:
 			# rotate robot to the left
 			# return constant * (2*math.pi - angle_2pi)
-			return 0.5
+			return 0.25
 		else:
 			# rotate robot to the right
 			# return constant * (angle_2pi - 2*math.pi)
-			return -0.5
+			return -0.25
 
 	def run(self):
 		"""
