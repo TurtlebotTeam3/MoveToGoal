@@ -19,7 +19,7 @@ class MoveToGoal:
 		rospy.init_node('move_to_goal')
 
 		self.stop = False
-		self.distance_tolerance = 0.05
+		self.distance_tolerance = 0.01
 		self.pose = Pose()
 		self.rate = rospy.Rate(20)
 		self.obstacle = False
@@ -123,12 +123,12 @@ class MoveToGoal:
 		self.goal_to_approach = True
 
 
-	def _move_to_goal(self)
+	def _move_to_goal(self):
 		vel_msg = Twist()
 
 		cancle = False
 
-		while self._euclidean_distance(self.goal_pose) >= self.distance_tolerance and not self.stop and not cancle:
+		while self._euclidean_distance(self.goal_pose) > self.distance_tolerance and not self.stop and not cancle:
 			if not self.pause_action:
 				if self.send_paused_update:
 					self.paused_publisher.publish(False)
@@ -226,13 +226,13 @@ class MoveToGoal:
 		"""
 		Runs in an endless loop and checks if there is a goal to approach until shutdown
 		"""
-		while True:
+		while not rospy.is_shutdown():
 			if self.goal_to_approach:
 				self._move_to_goal()
 
 if __name__ == '__main__':
 	try:
 		moveToGoal = MoveToGoal()
-		MoveToGoal.run()
+		moveToGoal.run()
 	except rospy.ROSInterruptException:
 		pass
