@@ -167,8 +167,8 @@ class MoveToGoal:
 				#vel_msg.angular.z = 0
 				#self.velocity_publisher.publish(vel_msg)
 			else:
-				self._stop_motors()
 				if self.send_paused_update:
+					self._stop_motors()
 					self.paused_publisher.publish(True)
 					self.send_paused_update = False
 
