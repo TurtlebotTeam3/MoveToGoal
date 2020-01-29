@@ -200,7 +200,7 @@ class MoveToGoal:
 
 	def _linear_vel(self, goal_pose, constant=0.4):
 		#return constant * self._euclidean_distance(goal_pose)
-		return 0.1
+		return 0.175
 
 	def _steering_angle(self, goal_pose):
 		y = goal_pose.position.y - self.pose.position.y
@@ -222,11 +222,11 @@ class MoveToGoal:
 		if angle_2pi < math.pi:
 			# rotate robot to the left
 			# return constant * (2*math.pi - angle_2pi)
-			return 0.25
+			return 0.75
 		else:
 			# rotate robot to the right
 			# return constant * (angle_2pi - 2*math.pi)
-			return -0.25
+			return -0.75
 
 	def run(self):
 		"""
