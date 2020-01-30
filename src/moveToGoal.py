@@ -21,7 +21,7 @@ class MoveToGoal:
 		self.stop = False
 		self.distance_tolerance = 0.02
 		self.pose = Pose()
-		self.rate = rospy.Rate(20)
+		self.rate = rospy.Rate(10)
 		self.obstacle = False
 		self.oldtheta = 0
 		self.pause_action = False
