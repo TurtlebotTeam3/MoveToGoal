@@ -3,13 +3,18 @@
 import rospy
 import numpy as np
 import math
-from std_msgs.msg import String
+import tf
+
+from simple_odom.msg import PoseConverted, CustomPose
+
 from math import pow, atan2, sqrt
+
+from std_msgs.msg import String
 from geometry_msgs.msg._Twist import Twist
 from geometry_msgs.msg._Pose import Pose
 from std_msgs.msg._Bool import Bool
 from sensor_msgs.msg._LaserScan import LaserScan
-import tf
+
 
 
 class MoveToGoal:
@@ -20,7 +25,10 @@ class MoveToGoal:
 
 		self.stop = False
 		self.distance_tolerance = 0.02
+
 		self.pose = Pose()
+		self.pose_converted = PoseConverted()
+
 		self.rate = rospy.Rate(10)
 		self.obstacle = False
 		self.oldtheta = 0
@@ -42,7 +50,7 @@ class MoveToGoal:
 													Bool, queue_size=1)
 		
 		self.pose_subscriber = rospy.Subscriber('/simple_odom_pose',
-												Pose, self._update_pose)
+												CustomPose, self._handle_update_pose)
 
 
 		self.scanSub = rospy.Subscriber('/scan', LaserScan, self._scan_callback)
@@ -85,24 +93,15 @@ class MoveToGoal:
 		else:
 			self.obstacle = False
 
-	def _update_pose(self, data):
+	def _handle_update_pose(self, data):
 		"""
 		Update current pose of robot
 		"""
 		try:
-			self.pose.position.x = data.position.x
-			self.pose.position.y = data.position.y
-			self.pose.position.z = data.position.z
-			self.pose.orientation.x = data.orientation.x 
-			self.pose.orientation.y = data.orientation.y 
-			self.pose.orientation.z = data.orientation.z
-			self.pose.orientation.w = data.orientation.w 
+			self.pose_converted = data.pose_converted
+			self.pose = data.pose
 		except:
 			print('transform not ready')
-		
-		self.pose.position.x = round(data.position.x, 4)
-		self.pose.position.y = round(data.position.y, 4)
-		self.robot_yaw = self._robot_angle()
 		
 	def _pause_action(self, data):
 		"""
@@ -111,12 +110,6 @@ class MoveToGoal:
 		# True when to pause and False when to continue
 		self.send_paused_update = True
 		self.pause_action = data.data
-
-	def _robot_angle(self):
-		orientation_q = self.pose.orientation
-		orientation_list = [orientation_q.x, orientation_q.y, orientation_q.z, orientation_q.w]
-		(roll, pitch, yaw) = tf.transformations.euler_from_quaternion(orientation_list)
-		return yaw
 
 	def _update_goal(self, goal_pose):
 		"""
@@ -149,7 +142,7 @@ class MoveToGoal:
 				vel_msg.angular.y = 0
 				vel_msg.angular.z = 0
 
-				if abs(self._steering_angle(self.goal_pose) - self.robot_yaw) > 0.2:
+				if abs(self._steering_angle(self.goal_pose) - self.pose_converted.yaw) > 0.2:
 					print('rotate')
 					vel_msg.angular.z = self._angular_vel(self.goal_pose)
 				else:
@@ -167,10 +160,6 @@ class MoveToGoal:
 
 				# Publish at the desired rate.
 				self.rate.sleep()
-				#vel_msg.linear.x = 0
-				#vel_msg.angular.z = 0
-				#self.velocity_publisher.publish(vel_msg)
-
 				goal_reached = self._euclidean_distance(self.goal_pose) <= self.distance_tolerance
 			else:
 				if self.send_paused_update:
@@ -195,37 +184,32 @@ class MoveToGoal:
 		self.rate.sleep()
 
 	def _euclidean_distance(self, goal_pose):
-		return sqrt(pow((goal_pose.position.x - self.pose.position.x), 2) +
-					pow((goal_pose.position.y - self.pose.position.y), 2))
+		return sqrt(pow((goal_pose.position.x - round(self.pose.position.x, 4)), 2) +
+					pow((goal_pose.position.y - round(self.pose.position.y, 4)), 2))
 
 	def _linear_vel(self, goal_pose, constant=0.4):
-		#return constant * self._euclidean_distance(goal_pose)
 		return 0.175
 
 	def _steering_angle(self, goal_pose):
-		y = goal_pose.position.y - self.pose.position.y
-		x = goal_pose.position.x - self.pose.position.x
+		y = goal_pose.position.y - round(self.pose.position.y, 4)
+		x = goal_pose.position.x - round(self.pose.position.x, 4)
 		
 		theta = atan2(y, x)
 		
 		return theta
 
 	def _angular_vel(self, goal_pose, constant=0.3):
-		yaw = self._robot_angle()
 		steer_angle = self._steering_angle(goal_pose)
-		#return constant * (steer_angle - yaw)
 		
-		yaw_2 = (yaw + 2*math.pi) % (2*math.pi)
+		yaw_2 = (self.pose_converted.yaw + 2*math.pi) % (2*math.pi)
 		steer_angle_2 = (steer_angle + 2*math.pi) % (2*math.pi)
 		angle_2pi = (steer_angle_2 - yaw_2) % (2*math.pi)
 		
 		if angle_2pi < math.pi:
 			# rotate robot to the left
-			# return constant * (2*math.pi - angle_2pi)
 			return 0.75
 		else:
 			# rotate robot to the right
-			# return constant * (angle_2pi - 2*math.pi)
 			return -0.75
 
 	def run(self):
