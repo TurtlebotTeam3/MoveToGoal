@@ -48,19 +48,19 @@ class MoveToGoal:
 		self.goal_reached_publisher = rospy.Publisher('move_to_goal/reached', 
 													Bool, queue_size=1)
 
-		self.paused_publisher = rospy.Publisher('/move_to_goal/paused',
+		self.paused_publisher = rospy.Publisher('move_to_goal/paused',
 													Bool, queue_size=1)
 		
-		self.pose_subscriber = rospy.Subscriber('/simple_odom_pose',
+		self.pose_subscriber = rospy.Subscriber('simple_odom_pose',
 												CustomPose, self._handle_update_pose)
 
 
-		self.scanSub = rospy.Subscriber('/scan', LaserScan, self._handle_scan_data)
+		self.scanSub = rospy.Subscriber('scan', LaserScan, self._handle_scan_data)
 
-		self.goal_subscriber = rospy.Subscriber('/move_to_goal/goal',
+		self.goal_subscriber = rospy.Subscriber('move_to_goal/goal',
 												Pose, self._update_goal)
 		
-		self.pause_subscriber = rospy.Subscriber('/move_to_goal/pause_action',
+		self.pause_subscriber = rospy.Subscriber('move_to_goal/pause_action',
 												Bool, self._pause_action)
 
 
