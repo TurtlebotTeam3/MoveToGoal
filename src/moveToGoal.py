@@ -7,6 +7,7 @@ import tf
 import copy
 
 from simple_odom.msg import PoseConverted, CustomPose
+from move_to_goal.srv import Move, MoveResponse
 
 from math import pow, atan2, sqrt
 
@@ -63,6 +64,7 @@ class MoveToGoal:
 		self.pause_subscriber = rospy.Subscriber('move_to_goal/pause_action',
 												Bool, self._pause_action)
 
+		self.drive_back_and_rotate_service = rospy.Service('drive_back_and_rotate', Move, self._drive_back_and_rotate_360)
 
 		print('--- ready ---')
 		#rospy.spin()
@@ -185,11 +187,11 @@ class MoveToGoal:
 		# Rotate 90° to the right
 		self._rotate_x_degrees(self.rotation_speed, 90, True)
 		# Drive 1,5 * robot width forward
-		self._move_forward_x(1.5 * 0.178)
+		self._move_straight_x(1.5 * 0.178)
 		# Rotate 90° to the left
 		self._rotate_x_degrees(self.rotation_speed, 90, False)
 		# Drive 1,5 * robot widt forward
-		self._move_forward_x(1.5 * 0.178)
+		self._move_straight_x(1.5 * 0.178)
 
 	def _rotate_x_degrees(self, speed_rad_sec, rotate_in_degrees, clockwise):
 		"""
@@ -216,6 +218,8 @@ class MoveToGoal:
 		current_angle = 0
 
 		while(current_angle < relative_angle):
+			if self.pause_action == True:
+				break
 			self._set_motor_speed(0,v_rotate)
 			t1 = rospy.Time.now().to_sec()
 			current_angle = speed_rad_sec*(t1-t0)
@@ -223,7 +227,7 @@ class MoveToGoal:
 		#Forcing our robot to stop
 		self._stop_motors()
 
-	def _move_forward_x(self, distance):
+	def _move_straight_x(self, distance):
 		"""
 		Move forward a definded distance:
 
@@ -241,9 +245,29 @@ class MoveToGoal:
 
 		# drive until specified distance is driven
 		while not self._euclidean_distance(goal_pose) <= self.distance_tolerance and not self.obstacle_in_front:
-			self._set_motor_speed(self._linear_vel(),0)
+			if self.pause_action == True:
+				break
+			if distance < 0:
+				self._set_motor_speed(-self._linear_vel(),0)
+			else:
+				self._set_motor_speed(self._linear_vel(),0)
 
 		self._stop_motors()
+
+	def _drive_back_and_rotate_360(self, data):
+		self._move_straight_x(-0.2)
+		# Rotate 360° to the right
+		self._rotate_x_degrees(self.rotation_speed, 360, True)
+
+		return_vel = Bool()
+		if self.pause_action == True:
+			# Blob found
+			return_vel.data =  False
+		else:
+			# No Blob found
+			return_vel.data =  True
+
+		return MoveResponse(return_vel)
 
 	def _stop_motors(self):
 		"""
