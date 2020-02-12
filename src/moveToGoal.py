@@ -38,7 +38,7 @@ class MoveToGoal:
 		self.goal_pose = Pose()
 		self.goal_to_approach = False
 
-		self.avoid_obstacle_enabled = False
+		self.avoid_obstacle_enabled = True
 
 		self.pub = rospy.Publisher('phrases', String, queue_size=10)
 		
@@ -129,10 +129,10 @@ class MoveToGoal:
 		"""
 		Drive towards the currently set goal
 		"""
-		cancle = False
+		cancel = False
 		goal_reached = self._euclidean_distance(self.goal_pose) <= self.distance_tolerance
 
-		while not goal_reached and not self.stop and not cancle:
+		while not goal_reached and not self.stop and not cancel:
 			if not self.pause_action:
 				if self.send_paused_update:
 					self.paused_publisher.publish(False)
@@ -151,13 +151,14 @@ class MoveToGoal:
 					if not self.obstacle_in_front:
 						v_forward = self._linear_vel(self.goal_pose)
 					else:
+						self._stop_motors()
 						if not self.avoid_obstacle_enabled:
-							self._stop_motors()
+							# cancel to trigger recalculation
+							cancel = True
+							print("--- cancel ---")
 						else:
 							# try to avoid obstacle by 90° rotation to right -> move 1,5 robot width forward -> 90° rotation to left -> move 1,5 robot width forward
 							self._avoid_obstacle()
-						# cancle to trigger recalculation
-						cancle = True
 
 				# Set speed
 				self._set_motor_speed(v_forward, v_rotate)
@@ -171,7 +172,7 @@ class MoveToGoal:
 
 		# Stopping our robot after the movement is over.
 		self._stop_motors()
-		if not cancle:
+		if not cancel:
 			self.goal_reached_publisher.publish(True)
 			self.goal_to_approach = False
 		else:
@@ -185,11 +186,11 @@ class MoveToGoal:
 		# Rotate 90° to the right
 		self._rotate_x_degrees(self.rotation_speed, 90, True)
 		# Drive 1,5 * robot width forward
-		self._move_forward_x(1.5 * 0.178)
+		self._move_forward_x(1.0 * 0.178)
 		# Rotate 90° to the left
 		self._rotate_x_degrees(self.rotation_speed, 90, False)
 		# Drive 1,5 * robot widt forward
-		self._move_forward_x(1.5 * 0.178)
+		self._move_forward_x(1.0 * 0.178)
 
 	def _rotate_x_degrees(self, speed_rad_sec, rotate_in_degrees, clockwise):
 		"""
