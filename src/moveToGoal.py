@@ -202,6 +202,9 @@ class MoveToGoal:
 		speed_rad_sec (float): Rotation speed in rad/sec
 		rotate_in_degrees (int): Rotation angle in degree
 		clockwise (bool): True = Clockwise, False = counterclockwise
+
+		Returns:
+		success (bool): True if successful executed
 		"""
 		#Converting from angles to radians
 		relative_angle = rotate_in_degrees*2*math.pi/360
@@ -218,9 +221,7 @@ class MoveToGoal:
 		t0 = rospy.Time.now().to_sec()
 		current_angle = 0
 
-		while(current_angle < relative_angle):
-			if self.pause_action == True:
-				break
+		while current_angle < relative_angle and not self.pause_action:
 			self._set_motor_speed(0,v_rotate)
 			t1 = rospy.Time.now().to_sec()
 			current_angle = speed_rad_sec*(t1-t0)
@@ -228,12 +229,20 @@ class MoveToGoal:
 		#Forcing our robot to stop
 		self._stop_motors()
 
+		if current_angle < relative_angle:
+			return False
+		else:
+			return True
+
 	def _move_straight_x(self, distance):
 		"""
 		Move forward a definded distance:
 
 		Parameters:
 		distance (float): Distance in meters
+
+		Returns:
+		success (bool): True if successful executed
 		"""
 		# Calculate end points
 		next_x = round(self.pose.position.x, 4) + math.cos(self.pose_converted.yaw) * distance
@@ -245,9 +254,7 @@ class MoveToGoal:
 		goal_pose.position.y = next_y
 
 		# drive until specified distance is driven
-		while not self._euclidean_distance(goal_pose) <= self.distance_tolerance and not self.obstacle_in_front:
-			if self.pause_action == True:
-				break
+		while not (self._euclidean_distance(goal_pose) <= self.distance_tolerance) and not self.obstacle_in_front and not self.pause_action:
 			if distance < 0:
 				self._set_motor_speed(-self._linear_vel(),0)
 			else:
@@ -255,18 +262,19 @@ class MoveToGoal:
 
 		self._stop_motors()
 
+		if (self._euclidean_distance(goal_pose) <= self.distance_tolerance):
+			return True
+		else:
+			return False
+
 	def _drive_back_and_rotate_360(self, data):
-		self._move_straight_x(-0.2)
+		success = True
+		success &= self._move_straight_x(-0.2)
 		# Rotate 360° to the right
-		self._rotate_x_degrees(self.rotation_speed, 360, True)
+		success &= self._rotate_x_degrees(self.rotation_speed, 360, True)
 
 		return_vel = Bool()
-		if self.pause_action == True:
-			# Blob found
-			return_vel.data =  False
-		else:
-			# No Blob found
-			return_vel.data =  True
+		return_vel.data =  success
 
 		return MoveResponse(return_vel)
 
