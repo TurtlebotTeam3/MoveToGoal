@@ -1,0 +1,5 @@
+<launch>
+    <node pkg="move_to_goal" type="moveToGoal.py" name="Move To Goal" output="screen">
+        <param name="avoid_obstacle" value="True" />
+    </node>
+</launch>

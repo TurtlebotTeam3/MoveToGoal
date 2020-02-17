@@ -39,7 +39,7 @@ class MoveToGoal:
 		self.goal_pose = Pose()
 		self.goal_to_approach = False
 
-		self.avoid_obstacle_enabled = True
+		self.avoid_obstacle_enabled = rospy.get_param("~avoid_obstacle",default=False)
 
 		self.pub = rospy.Publisher('phrases', String, queue_size=10)
 		
@@ -66,7 +66,7 @@ class MoveToGoal:
 
 		self.drive_back_and_rotate_service = rospy.Service('drive_back_and_rotate', Move, self._drive_back_and_rotate_360)
 
-		print('--- ready ---')
+		rospy.loginfo('ready')
 		#rospy.spin()
 
 	def _shutdown(self):
@@ -93,11 +93,18 @@ class MoveToGoal:
 		range_front[20:] = scan_data[:20]
 		range_front = list(filter(lambda num: num != 0, range_front))
 		min_front = min(range_front)
-		if min_front < 0.25 and min_front != 0.0:
-			self.obstacle_in_front = True
-			print "Obstacle in Front"
+		if self.avoid_obstacle_enabled:
+			if min_front < 0.3 and min_front != 0.0:
+				self.obstacle_in_front = True
+				rospy.loginfo('Obstacle in Front')
+			else:
+				self.obstacle_in_front = False
 		else:
-			self.obstacle_in_front = False
+			if min_front < 0.25 and min_front != 0.0:
+				self.obstacle_in_front = True
+				rospy.loginfo('Obstacle in Front')
+			else:
+				self.obstacle_in_front = False
 
 
 	def _handle_update_pose(self, data):
@@ -108,7 +115,7 @@ class MoveToGoal:
 			self.pose_converted = data.pose_converted
 			self.pose = data.pose
 		except:
-			print('transform not ready')
+			rospy.loginfo('transform not ready')
 		
 	def _pause_action(self, data):
 		"""
@@ -146,10 +153,10 @@ class MoveToGoal:
 				v_rotate = 0
 
 				if abs(self._steering_angle(self.goal_pose) - self.pose_converted.yaw) > 0.2:
-					print('rotate')
+					#print('rotate')
 					v_rotate = self._angular_vel(self.goal_pose)
 				else:
-					print('Forward')
+					#print('Forward')
 					if not self.obstacle_in_front:
 						v_forward = self._linear_vel(self.goal_pose)
 					else:
@@ -157,9 +164,9 @@ class MoveToGoal:
 						if not self.avoid_obstacle_enabled:
 							# cancel to trigger recalculation
 							cancel = True
-							print("--- cancel ---")
+							rospy.loginfo('cancel')
 						else:
-							# try to avoid obstacle by 90° rotation to right -> move 1,5 robot width forward -> 90° rotation to left -> move 1,5 robot width forward
+							# try to avoid obstacle by 90 rotation to right -> move 1,5 robot width forward -> 90 rotation to left -> move 1,5 robot width forward
 							self._avoid_obstacle()
 
 				# Set speed
@@ -185,14 +192,16 @@ class MoveToGoal:
 		"""
 		Avoids an obstacle by driving around it
 		"""
-		# Rotate 90° to the right
+		rospy.loginfo('Avoiding obstacle')
+		# Rotate 90 to the right
 		self._rotate_x_degrees(self.rotation_speed, 90, True)
-		# Drive 1,5 * robot width forward
-		self._move_straight_x(1.0 * 0.178)
-		# Rotate 90° to the left
+		# Drive 1,5  robot width forward
+		self._move_straight_x(0.178)
+		# Rotate 90 to the left
 		self._rotate_x_degrees(self.rotation_speed, 90, False)
-		# Drive 1,5 * robot widt forward
-		self._move_straight_x(1.0 * 0.178)
+		# Drive 1,5  robot widt forward
+		self._move_straight_x(0.178)
+		rospy.loginfo('Avoiding obstacle finished')
 
 	def _rotate_x_degrees(self, speed_rad_sec, rotate_in_degrees, clockwise):
 		"""
@@ -254,11 +263,14 @@ class MoveToGoal:
 		goal_pose.position.y = next_y
 
 		# drive until specified distance is driven
-		while not (self._euclidean_distance(goal_pose) <= self.distance_tolerance) and not self.obstacle_in_front and not self.pause_action:
+		while not (self._euclidean_distance(goal_pose) <= self.distance_tolerance) and not self.pause_action:
 			if distance < 0:
 				self._set_motor_speed(-self._linear_vel(),0)
 			else:
-				self._set_motor_speed(self._linear_vel(),0)
+				if not self.obstacle_in_front:
+					self._set_motor_speed(self._linear_vel(),0)
+				else:
+					break
 
 		self._stop_motors()
 
@@ -268,13 +280,21 @@ class MoveToGoal:
 			return False
 
 	def _drive_back_and_rotate_360(self, data):
+		rospy.loginfo('Start drive back and rotate')
 		success = True
 		success &= self._move_straight_x(-0.2)
-		# Rotate 360° to the right
+		# Rotate 360 to the right
 		success &= self._rotate_x_degrees(self.rotation_speed, 360, True)
 
 		return_vel = Bool()
 		return_vel.data =  success
+
+		if self.send_paused_update and self.pause_action and not success:
+			self._stop_motors()
+			self.paused_publisher.publish(True)
+			self.send_paused_update = False
+
+		rospy.loginfo('Finished drive back and rotate - success: ' + str(success))
 
 		return MoveResponse(return_vel)
 
