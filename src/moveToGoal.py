@@ -5,6 +5,7 @@ import numpy as np
 import math
 import tf
 import copy
+import time
 
 from simple_odom.msg import PoseConverted, CustomPose
 from move_to_goal.srv import Move, MoveResponse
@@ -33,15 +34,16 @@ class MoveToGoal:
 
 		self.rate = rospy.Rate(10)
 		self.obstacle_in_front = False
+		self.obstacle_in_back = False
 		self.oldtheta = 0
 		self.pause_action = False
 		self.send_paused_update = False
 		self.goal_pose = Pose()
 		self.goal_to_approach = False
 
-		self.avoid_obstacle_enabled = rospy.get_param("~avoid_obstacle",default=False)
+		self.last_pose_time = None
 
-		self.pub = rospy.Publisher('phrases', String, queue_size=10)
+		self.avoid_obstacle_enabled = rospy.get_param("~avoid_obstacle",default=False)
 		
 		self.velocity_publisher = rospy.Publisher('cmd_vel', 
 													Twist, queue_size=10)
@@ -93,25 +95,45 @@ class MoveToGoal:
 		range_front[20:] = scan_data[:20]
 		range_front = list(filter(lambda num: num != 0, range_front))
 		min_front = min(range_front)
+
+		range_back = []
+		min_back = 0
+		# in front of the robot (between 20 to -20 degrees)
+		range_back[:20] = scan_data[-20:]
+		range_back[20:] = scan_data[:20]
+		range_back = list(filter(lambda num: num != 0, range_back))
+		min_back = min(range_back)
+
 		if self.avoid_obstacle_enabled:
 			if min_front < 0.3 and min_front != 0.0:
+				if not self.obstacle_in_front:
+					rospy.loginfo('Obstacle in Front')
 				self.obstacle_in_front = True
-				rospy.loginfo('Obstacle in Front')
 			else:
 				self.obstacle_in_front = False
 		else:
 			if min_front < 0.25 and min_front != 0.0:
+				if not self.obstacle_in_front:
+					rospy.loginfo('Obstacle in Front')
 				self.obstacle_in_front = True
-				rospy.loginfo('Obstacle in Front')
 			else:
 				self.obstacle_in_front = False
+
+		if min_back < 0.3 and min_back != 0.0:
+			if not self.obstacle_in_back:
+				rospy.loginfo('Obstacle in Back')
+			self.obstacle_in_back = True
+		else:
+			self.obstacle_in_back = False
 
 
 	def _handle_update_pose(self, data):
 		"""
 		Update current pose of robot
 		"""
-		try:
+		try:	
+			self.last_pose_time = int(round(time.time() * 1000))
+
 			self.pose_converted = data.pose_converted
 			self.pose = data.pose
 		except:
@@ -142,7 +164,10 @@ class MoveToGoal:
 		goal_reached = self._euclidean_distance(self.goal_pose) <= self.distance_tolerance
 
 		while not goal_reached and not self.stop and not cancel:
-			if not self.pause_action:
+
+			current_time_ms = int(round(time.time() * 1000))
+
+			if not self.pause_action and self.last_pose_time != None and (current_time_ms - self.last_pose_time) < 50:
 				if self.send_paused_update:
 					self.paused_publisher.publish(False)
 					self.send_paused_update = False
@@ -161,13 +186,12 @@ class MoveToGoal:
 						v_forward = self._linear_vel(self.goal_pose)
 					else:
 						self._stop_motors()
-						if not self.avoid_obstacle_enabled:
-							# cancel to trigger recalculation
-							cancel = True
-							rospy.loginfo('cancel')
-						else:
+						if self.avoid_obstacle_enabled:
 							# try to avoid obstacle by 90 rotation to right -> move 1,5 robot width forward -> 90 rotation to left -> move 1,5 robot width forward
 							self._avoid_obstacle()
+						# cancel to trigger recalculation
+						cancel = True
+						rospy.loginfo('cancel')
 
 				# Set speed
 				self._set_motor_speed(v_forward, v_rotate)
@@ -193,14 +217,13 @@ class MoveToGoal:
 		Avoids an obstacle by driving around it
 		"""
 		rospy.loginfo('Avoiding obstacle')
-		# Rotate 90 to the right
-		self._rotate_x_degrees(self.rotation_speed, 90, True)
-		# Drive 1,5  robot width forward
-		self._move_straight_x(0.178)
+		# move back word
+		self._move_straight_x(-0.15)
 		# Rotate 90 to the left
-		self._rotate_x_degrees(self.rotation_speed, 90, False)
+		while self.obstacle_in_front:
+			self._rotate_x_degrees(self.rotation_speed, 90, False)
 		# Drive 1,5  robot widt forward
-		self._move_straight_x(0.178)
+		self._move_straight_x(0.15)
 		rospy.loginfo('Avoiding obstacle finished')
 
 	def _rotate_x_degrees(self, speed_rad_sec, rotate_in_degrees, clockwise):
@@ -231,9 +254,13 @@ class MoveToGoal:
 		current_angle = 0
 
 		while current_angle < relative_angle and not self.pause_action:
-			self._set_motor_speed(0,v_rotate)
-			t1 = rospy.Time.now().to_sec()
-			current_angle = speed_rad_sec*(t1-t0)
+			current_time_ms = int(round(time.time() * 1000))
+			if self.last_pose_time != None and (current_time_ms - self.last_pose_time) < 50:
+				self._set_motor_speed(0,v_rotate)
+				t1 = rospy.Time.now().to_sec()
+				current_angle = speed_rad_sec*(t1-t0)
+			else:
+				self._stop_motors()
 
 		#Forcing our robot to stop
 		self._stop_motors()
@@ -264,13 +291,20 @@ class MoveToGoal:
 
 		# drive until specified distance is driven
 		while not (self._euclidean_distance(goal_pose) <= self.distance_tolerance) and not self.pause_action:
-			if distance < 0:
-				self._set_motor_speed(-self._linear_vel(),0)
-			else:
-				if not self.obstacle_in_front:
-					self._set_motor_speed(self._linear_vel(),0)
+			current_time_ms = int(round(time.time() * 1000))
+			if self.last_pose_time != None and (current_time_ms - self.last_pose_time) < 50:
+				if distance < 0:
+					if not self.obstacle_in_back:
+						self._set_motor_speed(-self._linear_vel(),0)
+					else:
+						break
 				else:
-					break
+					if not self.obstacle_in_front:
+						self._set_motor_speed(self._linear_vel(),0)
+					else:
+						break
+			else:
+				self._stop_motors()
 
 		self._stop_motors()
 
