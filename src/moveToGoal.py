@@ -45,31 +45,21 @@ class MoveToGoal:
 
 		self.avoid_obstacle_enabled = rospy.get_param("~avoid_obstacle",default=False)
 		
-		self.velocity_publisher = rospy.Publisher('cmd_vel', 
-													Twist, queue_size=10)
-
-		self.goal_reached_publisher = rospy.Publisher('move_to_goal/reached', 
-													Bool, queue_size=1)
-
-		self.paused_publisher = rospy.Publisher('move_to_goal/paused',
-													Bool, queue_size=1)
+		# --- publisher ---
+		self.velocity_publisher = rospy.Publisher('cmd_vel', Twist, queue_size=10)
+		self.goal_reached_publisher = rospy.Publisher('move_to_goal/reached', Bool, queue_size=1)
+		self.paused_publisher = rospy.Publisher('move_to_goal/paused',	Bool, queue_size=1)
 		
-		self.pose_subscriber = rospy.Subscriber('simple_odom_pose',
-												CustomPose, self._handle_update_pose)
-
-
+		# --- subscriber ---
+		self.pose_subscriber = rospy.Subscriber('simple_odom_pose',	CustomPose, self._handle_update_pose)
 		self.scanSub = rospy.Subscriber('scan', LaserScan, self._handle_scan_data)
-
-		self.goal_subscriber = rospy.Subscriber('move_to_goal/goal',
-												Pose, self._update_goal)
-		
+		self.goal_subscriber = rospy.Subscriber('move_to_goal/goal', Pose, self._update_goal)
 		self.pause_subscriber = rospy.Subscriber('move_to_goal/pause_action',
 												Bool, self._pause_action)
-
+		# --- service ---
 		self.drive_back_and_rotate_service = rospy.Service('drive_back_and_rotate', Move, self._drive_back_and_rotate_360)
 
 		rospy.loginfo('ready')
-		#rospy.spin()
 
 	def _shutdown(self):
 		"""
@@ -166,8 +156,9 @@ class MoveToGoal:
 		while not goal_reached and not self.stop and not cancel:
 
 			current_time_ms = int(round(time.time() * 1000))
-
+			# check if network is working properly
 			if not self.pause_action and self.last_pose_time != None and (current_time_ms - self.last_pose_time) < 50:
+				
 				if self.send_paused_update:
 					self.paused_publisher.publish(False)
 					self.send_paused_update = False
@@ -177,11 +168,11 @@ class MoveToGoal:
 				# Rotation speed
 				v_rotate = 0
 
+				# rotate towards goal
 				if abs(self._steering_angle(self.goal_pose) - self.pose_converted.yaw) > 0.2:
-					#print('rotate')
 					v_rotate = self._angular_vel(self.goal_pose)
+				# drive forward towards goal
 				else:
-					#print('Forward')
 					if not self.obstacle_in_front:
 						v_forward = self._linear_vel(self.goal_pose)
 					else:
@@ -314,6 +305,9 @@ class MoveToGoal:
 			return False
 
 	def _drive_back_and_rotate_360(self, data):
+		"""
+		Handle service request. Drive back 20cm and rotate 360 degree
+		"""
 		rospy.loginfo('Start drive back and rotate')
 		success = True
 		success &= self._move_straight_x(-0.2)
@@ -339,6 +333,9 @@ class MoveToGoal:
 		self._set_motor_speed(0,0)
 
 	def _set_motor_speed(self, forward_speed, rotation_speed):
+		"""
+		Publish speeds to robot.
+		"""
 		vel_msg = Twist()
 		# Linear velocity in the x-axis.
 		vel_msg.linear.x = forward_speed
